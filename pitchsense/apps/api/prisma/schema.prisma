@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id // Clerk user ID
+  email     String   @unique
+  name      String?
+  plan      Plan     @default(FREE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pitches        Pitch[]
+  subscriptions  Subscription[]
+}
+
+model Pitch {
+  id        String      @id @default(uuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+
+  mode      PitchMode
+  status    PitchStatus @default(PENDING)
+
+  // Input storage
+  fileKey   String?     // S3 object key
+  rawText   String?     // pasted transcript
+
+  // Transcription output
+  transcript String?
+
+  // Analysis output
+  score          Int?         // 0–100
+  scoreDimensions Json?       // { narrative: 72, market: 55, ... }
+  strengths       String[]
+  gaps            String[]
+  investorQuestions String[]
+  detailedFeedback  String?   // long-form markdown
+
+  // Metadata
+  durationSeconds Int?
+  pageCount       Int?
+  wordCount       Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions  SimulatorSession[]
+}
+
+model SimulatorSession {
+  id        String   @id @default(uuid())
+  pitchId   String
+  pitch     Pitch    @relation(fields: [pitchId], references: [id])
+  persona   VCPersona
+  messages  Json     // [{role, content, ts}]
+  createdAt DateTime @default(now())
+}
+
+model Subscription {
+  id                 String   @id @default(uuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id])
+  stripeCustomerId   String?  @unique
+  stripeSubId        String?  @unique
+  plan               Plan     @default(FREE)
+  status             String   @default("active")
+  currentPeriodEnd   DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+enum PitchMode {
+  FILE
+  AUDIO
+  TEXT
+}
+
+enum PitchStatus {
+  PENDING
+  TRANSCRIBING
+  ANALYZING
+  COMPLETE
+  FAILED
+}
+
+enum Plan {
+  FREE
+  PRO
+  TEAM
+}
+
+enum VCPersona {
+  GROWTH         // Revenue-obsessed, SaaS metrics focus
+  DEEP_TECH      // Technical due diligence, moat-focused
+  SEED_STAGE     // Team & vision, pre-revenue comfort
+  SKEPTIC        // Challenges every assumption
+  STRATEGIC      // Corporate VC, partnership angle
+}
